@@ -231,7 +231,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(path))
 
     # Test with batch of images
-    testBatch()
+    #testBatch()
 
     # Conversion to ONNX 
     Convert_ONNX()
