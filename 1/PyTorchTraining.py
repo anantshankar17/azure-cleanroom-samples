@@ -216,11 +216,19 @@ def Convert_ONNX():
     print(" ") 
     print('Model has been converted to ONNX') 
 
+import time
+
 if __name__ == "__main__":
-    
+
+    start = time.time()
+
     # Let's build our model
     train(5)
     print('Finished Training')
+
+    # <code to time>
+    end = time.time()
+    print(f"Time taken to run was {end-start} seconds")
 
     # Test which classes performed well
     testAccuracy()
