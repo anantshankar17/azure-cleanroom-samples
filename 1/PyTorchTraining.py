@@ -42,7 +42,6 @@ print("The number of images in a test set is: ", len(test_loader)*batch_size)
 print("The number of batches per epoch is: ", len(train_loader))
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-
 # Define a convolution neural network
 class Network(nn.Module):
     def __init__(self):
@@ -70,23 +69,10 @@ class Network(nn.Module):
 
         return output
 
-# Instantiate a neural network model 
-model = Network()
-
-# Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
-loss_fn = nn.CrossEntropyLoss()
-optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
-
-
 from torch.autograd import Variable
 
-# Function to save the model
-def saveModel():
-    path = "./myFirstModel.pth"
-    torch.save(model.state_dict(), path)
-
 # Function to test the model with the test dataset and print the accuracy for the test images
-def testAccuracy():
+def testAccuracy(model):
     
     model.eval()
     accuracy = 0.0
@@ -109,88 +95,45 @@ def testAccuracy():
 
 
 # Training function. We simply have to loop over our data iterator and feed the inputs to the network and optimize.
-def train(num_epochs):
-    
-    best_accuracy = 0.0
+def train(model, device, epoch):
+    # Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
+    running_loss = 0.0
 
-    # Define your execution device
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print("The model will be running on", device, "device")
-    # Convert model parameters and buffers to CPU or Cuda
-    model.to(device)
-
-    for epoch in range(num_epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
-        running_acc = 0.0
-
-        for i, (images, labels) in enumerate(train_loader, 0):
-            
-            # get the inputs
-            images = Variable(images.to(device))
-            labels = Variable(labels.to(device))
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-            # predict classes using images from the training set
-            outputs = model(images)
-            # compute the loss based on model output and real labels
-            loss = loss_fn(outputs, labels)
-            # backpropagate the loss
-            loss.backward()
-            # adjust parameters based on the calculated gradients
-            optimizer.step()
-
-            # Let's print statistics for every 1,000 images
-            running_loss += loss.item()     # extract the loss value
-            if i % 1000 == 999:    
-                # print every 1000 (twice per epoch) 
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch + 1, i + 1, running_loss / 1000))
-                # zero the loss
-                running_loss = 0.0
-
-        # Compute and print the average accuracy fo this epoch when tested over all 10000 test images
-        accuracy = testAccuracy()
-        print('For epoch', epoch+1,'the test accuracy over the whole test set is %d %%' % (accuracy))
+    for i, (images, labels) in enumerate(train_loader, 0):
         
-        # we want to save the model if the accuracy is the best
-        if accuracy > best_accuracy:
-            saveModel()
-            best_accuracy = accuracy
+        # get the inputs
+        images = Variable(images.to(device))
+        labels = Variable(labels.to(device))
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+        # predict classes using images from the training set
+        outputs = model(images)
+        # compute the loss based on model output and real labels
+        loss = loss_fn(outputs, labels)
+        # backpropagate the loss
+        loss.backward()
+        # adjust parameters based on the calculated gradients
+        optimizer.step()
+
+        # Let's print statistics for every 1,000 images
+        running_loss += loss.item()     # extract the loss value
+        if i % 1000 == 999:
+            # print every 1000 (twice per epoch)
+            print('[%d, %5d] loss: %.3f' %
+                    (epoch + 1, i + 1, running_loss / 1000))
+            # zero the loss
+            running_loss = 0.0
+
+    # Compute and print the average accuracy for this epoch when tested over all 10000 test images
+    accuracy = testAccuracy(model)
+    print('For epoch', epoch+1,'the test accuracy over the whole test set is %d %%' % (accuracy))
+
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-# Function to show the images
-def imageshow(img):
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.show()
-
-
-# Function to test the model with a batch of images and show the labels predictions
-def testBatch():
-    # get batch of images from the test DataLoader  
-    images, labels = next(iter(test_loader))
-
-    # show all images as one image grid
-    imageshow(torchvision.utils.make_grid(images))
-   
-    # Show the real labels on the screen 
-    print('Real labels: ', ' '.join('%5s' % classes[labels[j]] 
-                               for j in range(batch_size)))
-  
-    # Let's see what if the model identifiers the  labels of those example
-    outputs = model(images)
-    
-    # We got the probability for every 10 labels. The highest (max) probability should be correct label
-    _, predicted = torch.max(outputs, 1)
-    
-    # Let's show the predicted labels on the screen to compare with the real ones
-    print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] 
-                              for j in range(batch_size)))
-
 import torch.onnx 
 
 #Function to Convert to ONNX 
@@ -213,17 +156,51 @@ def Convert_ONNX():
          output_names = ['modelOutput'], # the model's output names 
          dynamic_axes={'modelInput' : {0 : 'batch_size'},    # variable length axes 
                                 'modelOutput' : {0 : 'batch_size'}}) 
+
     print(" ") 
     print('Model has been converted to ONNX') 
 
 import time
+import os
+
+def buildAndTrain(path):
+
+    # Define your execution device
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("The model will be running on", device, "device")
+
+    # Instantiate a neural network model
+    model = Network()
+
+    if (os.path.exists(path)):
+        print("Model exists")
+
+        # Load the state dict
+        model.load_state_dict(torch.load(path))
+
+    else:
+        print("Initializing the model")
+
+    # Convert model parameters and buffers to CPU or Cuda
+    model.to(device)
+
+    # Train
+    for epoch in range(5):  # loop over the dataset multiple times
+        train(model, device, epoch)
+
+    # Save the model
+    torch.save(model.state_dict(), path)
+
 
 if __name__ == "__main__":
 
     start = time.time()
+    path = "myFirstModel.pth"
 
-    # Let's build our model
-    train(5)
+    # Let's build & save our model
+    #train(5)
+    buildAndTrain(path)
+
     print('Finished Training')
 
     # <code to time>
@@ -231,11 +208,11 @@ if __name__ == "__main__":
     print(f"Time taken to run was {end-start} seconds")
 
     # Test which classes performed well
-    testAccuracy()
+    #testAccuracy()
     
     # Let's load the model we just created and test the accuracy per label
     model = Network()
-    path = "myFirstModel.pth"
+
     model.load_state_dict(torch.load(path))
 
     # Test with batch of images
